@@ -15,7 +15,6 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardWatchEventKinds;
@@ -109,7 +108,7 @@ public abstract class JavaToQuik {
                                     // Прочитать новые строчки
                                     // BufferedReader.readLine()
                                     LinkedList<String> lines = new LinkedList<>();
-                                    try (BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(new FileInputStream(quikPath + File.separator + event.context().toString()), StandardCharsets.UTF_8))) {
+                                    try (BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(new FileInputStream(quikPath + File.separator + event.context().toString()), "windows-1251"))) {
                                         String line;
                                         int lineIndex = 0;
                                         while ((line = bufferedReader.readLine()) != null) {
@@ -183,15 +182,7 @@ public abstract class JavaToQuik {
     }
     
     public enum Operation {
-        BUY('B'), SELL('S');
-        
-        private final char operationCode;
-        Operation(char operationCode) {
-            this.operationCode = operationCode;
-        }
-        public char getValue() {
-            return operationCode;
-        }
+        B, S;
     }
     
     /*
@@ -200,12 +191,12 @@ public abstract class JavaToQuik {
     Пример:
     ACCOUNT=4100WWQ; CLIENT_CODE=4100WWQ; TYPE=M; TRANS_ID=8; CLASSCODE=SPBFUT; SECCODE=SRM6; ACTION=NEW_ORDER; OPERATION=B; PRICE=16231; QUANTITY=15;
     */
-    public int sendOrder(String classCode, String secCode, Operation operation, BigDecimal price, int quantity) {
-        return sendTransaction("ACCOUNT=" + getAccount() +
+    public int sendNewOrder(String classCode, String secCode, Operation operation, BigDecimal price, int quantity) {
+        return sendTransaction("ACTION=NEW_ORDER; ACCOUNT=" + getAccount() +
                 "; CLIENT_CODE=" + getClientCode() +
                 "; TYPE=M; CLASSCODE=" + classCode +
                 "; SECCODE=" + secCode +
-                "; ACTION=NEW_ORDER; OPERATION=" + operation +
+                "; OPERATION=" + operation +
                 "; PRICE=" + price.toPlainString() +
                 "; QUANTITY=" + quantity + ";");
     }
@@ -216,7 +207,7 @@ public abstract class JavaToQuik {
     TRANS_ID=1; CLASSCODE=TQBR; ACTION=KILL_ALL_ORDERS; CLIENT_CODE=Q6;
     */
     public int sendKillAllOrders(String classCode) {
-        return sendTransaction("CLASSCODE=" + classCode + "; ACTION=KILL_ALL_ORDERS; CLIENT_CODE=" + getClientCode() + ";");
+        return sendTransaction("ACTION=KILL_ALL_ORDERS; CLASSCODE=" + classCode + "; CLIENT_CODE=" + getClientCode() + ";");
     }
 
     /*
@@ -224,16 +215,46 @@ public abstract class JavaToQuik {
     Пример:
     ACTION=MOVE_ORDERS; TRANS_ID=333; CLASSCODE=SPBFUT; SECCODE=EBM6; FIRM_ID=SPBFUT389; MODE=1; FIRST_ORDER_NUMBER=21445064; FIRST_ORDER_NEW_PRICE=10004; FIRST_ORDER_NEW_QUANTITY=4; SECOND_ORDER_NUMBER=21445065; SECOND_ORDER_NEW_PRICE=10004; SECOND_ORDER_NEW_QUANTITY=4;
     */
-    public int sendMoveOrders() {
+    public int sendMoveOrders(String classCode, String secCode, String firmId, int mode, int firstOrderNumber, BigDecimal firstOrderNewPrice, int firstOrderNewQuantity, int secondOrderNumber, BigDecimal secondOrderNewPrice, int secondOrderNewQuantity) {
         // TODO: Вставить параметры транзакции из аргументов метода
-        return sendTransaction("ACTION=MOVE_ORDERS; CLASSCODE=SPBFUT; SECCODE=EBM6; FIRM_ID=SPBFUT389; MODE=1; FIRST_ORDER_NUMBER=21445064; FIRST_ORDER_NEW_PRICE=10004; FIRST_ORDER_NEW_QUANTITY=4; SECOND_ORDER_NUMBER=21445065; SECOND_ORDER_NEW_PRICE=10004; SECOND_ORDER_NEW_QUANTITY=4;");
+        return sendTransaction("ACTION=MOVE_ORDERS; CLASSCODE=" + classCode +
+                "; SECCODE=" + secCode +
+                "; FIRM_ID=" + firmId +
+                "; MODE=" + mode +
+                "; FIRST_ORDER_NUMBER=" + firstOrderNumber +
+                "; FIRST_ORDER_NEW_PRICE=" + firstOrderNewPrice +
+                "; FIRST_ORDER_NEW_QUANTITY=" + firstOrderNewQuantity +
+                "; SECOND_ORDER_NUMBER=" + secondOrderNumber +
+                "; SECOND_ORDER_NEW_PRICE=" + secondOrderNewPrice +
+                "; SECOND_ORDER_NEW_QUANTITY=" + secondOrderNewQuantity + ";");
     }
     
+    /*
+    Пример:
+    ACTION=NEW_STOP_ORDER; ACCOUNT= NL0080000043; TRANS_ID=17; CLASSCODE=TQBR;
+    SECCODE=HYDR; OPERATION=S; QUANTITY=100; CLIENT_CODE=467; STOPPRICE=7.3; PRICE=7.0; EXPIRY_DATE=20110519;
+    */
+    public int sendNewStopOrder(String classCode, String secCode, Operation operation, int quantity, BigDecimal stopPrice, BigDecimal price) {
+        return sendTransaction("ACTION=NEW_STOP_ORDER; ACCOUNT=" + getAccount() +
+                "; CLIENT_CODE=" + getClientCode() +
+                "; CLASSCODE=" + classCode +
+                "; SECCODE=" + secCode +
+                "; OPERATION=" + operation +
+                "; QUANTITY=" + quantity +
+                "; STOPPRICE=" + stopPrice +
+                "; PRICE=" + price +
+                "; EXPIRY_DATE=GTC");
+    }
+    
+    
+    
+    
+    
     public static void main(String args[]) throws IOException {
-        JavaToQuik javaToQuik = new JavaToQuik("D:\\") {
+        JavaToQuik javaToQuik = new JavaToQuik("d:\\quikconnection\\") {
             @Override
             protected void onTransactionResult(Integer transactionId, Map args) {
-                System.out.println(transactionId + " " + args);
+                System.out.println("callback: " + transactionId + " " + args);
             }
 
             @Override
@@ -243,15 +264,16 @@ public abstract class JavaToQuik {
         };
         javaToQuik.setAccount("4100WWQ");
         javaToQuik.setClientCode("4100WWQ");
+        javaToQuik.setAccount("SPBFUTJR00R");
+        javaToQuik.setClientCode("SPBFUTJR00R");
         
         System.in.read();
-        javaToQuik.sendOrder("SPBFUT", "SRM6", Operation.BUY, new BigDecimal("12680"), 1);
-        //javaToQuik.sendTransaction("ACCOUNT=" + javaToQuik.getAccount() + "; CLIENT_CODE=" + javaToQuik.getClientCode() + "; TYPE=M; CLASSCODE=SPBFUT; SECCODE=SRM6; ACTION=NEW_ORDER; OPERATION=S; PRICE=16231; QUANTITY=1;");
+        javaToQuik.sendNewOrder("SPBFUT", "SiM6", Operation.B, new BigDecimal("66290"), 1);
         
         System.in.read();
-        // Удалить все заявки
-        //javaToQuik.sendTransaction("CLASSCODE=SPBFUT; ACTION=KILL_ALL_ORDERS; CLIENT_CODE=" + javaToQuik.getClientCode() + ";");
         javaToQuik.sendKillAllOrders("SPBFUT");
+        
+        
         System.in.read();
         javaToQuik.stop();
     }
