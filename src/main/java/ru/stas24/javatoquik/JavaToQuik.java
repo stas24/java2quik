@@ -5,13 +5,17 @@
  */
 package ru.stas24.javatoquik;
 
+import com.pretty_tools.dde.DDEException;
+import com.pretty_tools.dde.server.DDEServer;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.math.BigDecimal;
@@ -25,6 +29,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import ru.stas24.dde.XLTable;
 
 /**
  *
@@ -39,7 +44,8 @@ public abstract class JavaToQuik {
     private String clientCode;
     Thread watcherThread;
     PrintWriter output;
-
+    final DDEServer ddeServer;
+    
     public String getAccount() {
         return account;
     }
@@ -56,7 +62,7 @@ public abstract class JavaToQuik {
         this.clientCode = clientCode;
     }
     
-    public JavaToQuik(String quikPath) throws IOException {
+    public JavaToQuik(String quikPath, String ddeServiceName) throws IOException, DDEException {
         this.quikPath = quikPath;
         
         // Delete old files
@@ -75,6 +81,64 @@ public abstract class JavaToQuik {
         
         // Output file (output from Quik)
         startWatcher();
+        
+        // DDE Server
+        ddeServer = new DDEServer(ddeServiceName) {
+            @Override
+            protected boolean isTopicSupported(String topicName) {
+                System.out.println("DDE.isTopicSupported(" + topicName + ")");
+                return true;
+            }
+
+            @Override
+            protected boolean isItemSupported(String topic, String item, int uFmt)
+            {
+                System.out.println("DDE.isItemSupported(" + topic + ", " + item + ", " + uFmt + ")");
+                return true;
+            }
+
+            @Override
+            protected boolean onExecute(String command) {
+                System.out.println("DDE.onExecute(" + command + ")");
+                return true;
+            }
+
+            @Override
+            protected boolean onPoke(String topic, String item, String data) {
+                System.out.println("DDE.onPoke(" + topic + ", " + item + ", " + data + ")");
+                return true;
+            }
+
+            @Override
+            protected boolean onPoke(String topic, String item, byte[] data, int uFmt) {
+                System.out.println("DDE.onPoke(" + topic + ", " + item + ", " + data.toString() + ", " + uFmt + ")");
+                System.out.println(new String(data));
+                try {
+                    try (FileOutputStream fos = new FileOutputStream("D:\\out.dat", true)) {
+                        fos.write(data);
+                    }
+                } catch (Exception ex) {
+                    ex.printStackTrace();                                                                                                           
+                }
+                return true; // we do not support it
+            }
+
+            @Override
+            protected String onRequest(String topic, String item) {
+                System.out.println("DDE.onRequest(" + topic + ", " + item + ")");
+                return item + " data ";
+            }
+
+            @Override
+            protected byte[] onRequest(String topic, String item, int uFmt) {
+                System.out.println("DDE.onPoke(" + topic + ", " + item + ", " + uFmt + ")");
+                return null; // we do not support it
+            }
+        };
+        
+        System.out.print("DDE server (" + ddeServiceName + ") starting... ");
+        ddeServer.start();
+        System.out.print("DDE server (" + ddeServiceName + ") started!");
     }
     
     abstract protected void onTransactionResult(Integer transactionId, Map args);
@@ -250,8 +314,8 @@ public abstract class JavaToQuik {
     
     
     
-    public static void main(String args[]) throws IOException {
-        JavaToQuik javaToQuik = new JavaToQuik("d:\\quikconnection\\") {
+    public static void main2(String args[]) throws IOException, DDEException {
+        JavaToQuik javaToQuik = new JavaToQuik("d:\\quikconnection\\", "mydde") {
             @Override
             protected void onTransactionResult(Integer transactionId, Map args) {
                 System.out.println("callback: " + transactionId + " " + args);
@@ -276,5 +340,19 @@ public abstract class JavaToQuik {
         
         System.in.read();
         javaToQuik.stop();
+    }
+    
+    public static void main(String args[]) throws IOException, DDEException {
+        InputStream is = new FileInputStream(new File("D:\\out.dat"));
+        
+        XLTable table = new XLTable(is);
+        List<List<Object>> matrix = table.getMatrix();
+        System.out.println(matrix);
+        
+        System.out.println(new XLTable(is).getMatrix());
+        System.out.println(new XLTable(is).getMatrix());
+        System.out.println(new XLTable(is).getMatrix());
+        System.out.println(new XLTable(is).getMatrix());
+        
     }
 }
