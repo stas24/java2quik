@@ -9,6 +9,7 @@ import com.pretty_tools.dde.DDEException;
 import com.pretty_tools.dde.server.DDEServer;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -29,6 +30,8 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import ru.stas24.dde.XLTable;
 
 /**
@@ -91,8 +94,7 @@ public abstract class JavaToQuik {
             }
 
             @Override
-            protected boolean isItemSupported(String topic, String item, int uFmt)
-            {
+            protected boolean isItemSupported(String topic, String item, int uFmt) {
                 System.out.println("DDE.isItemSupported(" + topic + ", " + item + ", " + uFmt + ")");
                 return true;
             }
@@ -111,8 +113,21 @@ public abstract class JavaToQuik {
 
             @Override
             protected boolean onPoke(String topic, String item, byte[] data, int uFmt) {
-                System.out.println("DDE.onPoke(" + topic + ", " + item + ", " + data.toString() + ", " + uFmt + ")");
-                System.out.println(new String(data));
+                try {
+                    //System.out.println("DDE.onPoke(" + topic + ", " + item + ", " + data.toString() + ", " + uFmt + ")");
+                    //System.out.println(new String(data));
+                    XLTable table = new XLTable(new ByteArrayInputStream(data));
+                    for(List<Object> line: table.getMatrix()) {
+                        for(Object cell: line) {
+                            System.out.print(cell);
+                            System.out.print("\t");
+                        }
+                        System.out.println("");
+                    }
+                } catch (IOException ex) {
+                    Logger.getLogger(JavaToQuik.class.getName()).log(Level.SEVERE, null, ex);
+                }
+                /*
                 try {
                     try (FileOutputStream fos = new FileOutputStream("D:\\out.dat", true)) {
                         fos.write(data);
@@ -120,6 +135,7 @@ public abstract class JavaToQuik {
                 } catch (Exception ex) {
                     ex.printStackTrace();                                                                                                           
                 }
+                */
                 return true; // we do not support it
             }
 
@@ -314,7 +330,7 @@ public abstract class JavaToQuik {
     
     
     
-    public static void main2(String args[]) throws IOException, DDEException {
+    public static void main(String args[]) throws IOException, DDEException {
         JavaToQuik javaToQuik = new JavaToQuik("d:\\quikconnection\\", "mydde") {
             @Override
             protected void onTransactionResult(Integer transactionId, Map args) {
@@ -342,7 +358,7 @@ public abstract class JavaToQuik {
         javaToQuik.stop();
     }
     
-    public static void main(String args[]) throws IOException, DDEException {
+    public static void main2(String args[]) throws IOException, DDEException {
         InputStream is = new FileInputStream(new File("D:\\out.dat"));
         
         XLTable table = new XLTable(is);

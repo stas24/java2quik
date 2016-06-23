@@ -11,27 +11,19 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
-import static sun.security.krb5.Confounder.bytes;
 
 /**
  *
  * @author Stanislav Doroshin
  */
-public class XLTable implements Iterable<HashMap<String, Object>>{
-
-    @Override
-    public Iterator<HashMap<String, Object>> iterator() {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
-    }
+public class XLTable {
     
     public static class Type {
-        public static short Unk    = 0xFF;
-        public static short EOF    = 0xF0;
+        //public static short Unk    = 0xFF;
+        //public static short EOF    = 0xF0;
         public static short Table  = 0x10; // 4
         public static short Float  = 0x01; // 8
         public static short String = 0x02; // 1+N
@@ -52,7 +44,7 @@ public class XLTable implements Iterable<HashMap<String, Object>>{
         
         // read headers
         type = readUShort();
-        int blockSize = readUShort();
+        blockSize = readUShort();
         rows = readUShort();
         cols = readUShort();
         
@@ -81,10 +73,41 @@ public class XLTable implements Iterable<HashMap<String, Object>>{
                     addCell(readString(stringLength));
                 }
             } else if (columnType == Type.Float) { // Число
-                
+                while (blockSize > 0) {
+                    addCell(readDouble8());
+                }
+            } else if (columnType == Type.Bool) {
+                while (blockSize > 0) {
+                    addCell(readUShort() == 1);
+                }
+            } else if (columnType == Type.Error) {
+                while (blockSize > 0) {
+                    readUShort();
+                    // read errors, but add empty cells
+                    addCell(null);
+                }
+            } else if (columnType == Type.Blank) {
+                while (blockSize > 0) {
+                    // read errors, but add empty cells
+                    readUShort();
+                    addCell(null);
+                }
+            } else if (columnType == Type.Int) {
+                while (blockSize > 0) {
+                    addCell(readUShort());
+                }
+            } else if (columnType == Type.Skip) {
+                while (blockSize > 0) {
+                    // read skip, but add empty cells
+                    readUShort();
+                    addCell(null);
+                }
             } else {
-                // неизвестный тип
-                System.out.println("Unknown type: " + columnType);
+                while (blockSize > 0) {
+                    // неизвестный тип
+                    readUShort();
+                    System.out.println("Unknown type: " + columnType);
+                }
             }
         }
     }
@@ -119,6 +142,19 @@ public class XLTable implements Iterable<HashMap<String, Object>>{
         bb.put(dis.readByte());
         bb.put(dis.readByte());
         return bb.getShort(0);
+    }
+    
+    private double readDouble8() throws IOException {
+        blockSize -= 8;
+        
+        ByteBuffer bb = ByteBuffer.allocate(8);
+        bb.order(ByteOrder.LITTLE_ENDIAN);
+        for (int i = 0; i < 8; i++) {
+            bb.put(dis.readByte());
+        }
+        
+        double d = bb.getDouble(0);
+        return d;
     }
     
     private byte readByte() throws IOException {
